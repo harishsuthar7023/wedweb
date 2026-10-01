@@ -21,7 +21,7 @@ export default function WeddingInvitationReveal({ progress = 0, onExploreGallery
 
   return (
     <div
-      className="wedding-reveal-container flex flex-col items-center justify-center text-center max-w-3xl mx-auto px-6 py-6 sm:py-8 relative z-20 pointer-events-auto"
+      className="wedding-reveal-container flex flex-col items-center justify-center text-center max-w-3xl mx-auto px-6 py-6 sm:py-8 relative z-20 pointer-events-none select-none"
       style={containerStyle}
       aria-live="polite"
     >
@@ -168,7 +168,7 @@ export default function WeddingInvitationReveal({ progress = 0, onExploreGallery
         {onExploreGallery && (
           <button
             type="button"
-            className="inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-2.5 rounded-full font-serif text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 hover:scale-105 cursor-pointer text-[#140e0a]"
+            className="pointer-events-auto inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-2.5 rounded-full font-serif text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 hover:scale-105 cursor-pointer text-[#140e0a]"
             style={{
               background: 'linear-gradient(135deg, #fce09a 0%, #d4a359 50%, #ba6238 100%)',
               boxShadow: '0 8px 24px rgba(0, 0, 0, 0.7), 0 0 24px rgba(212, 163, 89, 0.45)',
@@ -183,7 +183,7 @@ export default function WeddingInvitationReveal({ progress = 0, onExploreGallery
 
         <button
           type="button"
-          className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full font-serif text-xs sm:text-sm font-medium text-[#faf6ed] transition-all duration-300 hover:scale-105 cursor-pointer"
+          className="pointer-events-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full font-serif text-xs sm:text-sm font-medium text-[#faf6ed] transition-all duration-300 hover:scale-105 cursor-pointer"
           style={{
             background: 'rgba(22, 14, 9, 0.88)',
             border: '1.5px solid rgba(212, 163, 89, 0.48)',

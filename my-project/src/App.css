@@ -1394,6 +1394,9 @@
   max-height: 100dvh;
   overflow: hidden;
   background-color: #140e0a;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .scroll-canvas-sticky-wrapper {
@@ -1408,6 +1411,7 @@
   align-items: center;
   justify-content: center;
   background-color: #140e0a;
+  touch-action: none;
 }
 
 .scroll-sequence-canvas {
@@ -1418,6 +1422,7 @@
   height: 100%;
   display: block;
   z-index: 1;
+  touch-action: none;
 }
 
 /* Seamless luxury gold vignette - zero visible edges */
@@ -1459,7 +1464,7 @@
   pointer-events: none;
 }
 
-/* Pinned hero overlay container */
+/* Pinned hero overlay container - perfectly transparent to touch swipes */
 .hero-content-pinned {
   position: absolute;
   top: 0;
@@ -1471,10 +1476,15 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  pointer-events: none !important;
+}
+
+.hero-content-pinned > * {
   pointer-events: none;
 }
 
-.hero-content-pinned>* {
+.hero-content-pinned button,
+.hero-content-pinned a {
   pointer-events: auto;
 }
 
@@ -1531,16 +1541,19 @@
 /* Initial Floating Scroll Prompt */
 .initial-scroll-hint {
   position: absolute;
-  top: 50%;
+  top: 14%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  gap: 14px;
   z-index: 15;
   transition: opacity 0.3s ease-out, transform 0.3s ease-out;
   text-align: center;
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 .royal-badge-pill {
