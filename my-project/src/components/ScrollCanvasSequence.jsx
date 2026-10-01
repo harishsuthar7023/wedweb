@@ -205,18 +205,21 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
   useEffect(() => {
     // 1. Mouse Wheel Handler for Desktop
     const handleWheel = (e) => {
-      const isHeroInView = window.scrollY < window.innerHeight * 0.6;
+      const isHeroInView = window.scrollY < window.innerHeight * 0.55;
 
       if (isHeroInView) {
         if (e.deltaY > 0) {
           // User is scrolling DOWN
-          if (targetFrameRef.current < TOTAL_FRAMES - 1) {
+          if (targetFrameRef.current < TOTAL_FRAMES - 4) {
             e.preventDefault();
             const absDelta = Math.abs(e.deltaY);
-            const step = absDelta < 50 ? Math.max(1.2, absDelta * 0.14) : Math.min(10, Math.max(3, absDelta / 16));
+            // Ultra-responsive desktop scrolling: ~3-5 smooth wheel clicks or 1 trackpad swipe
+            const step = absDelta < 50
+              ? Math.max(3.5, absDelta * 0.38)
+              : Math.min(28, Math.max(10, absDelta * 0.22));
             targetFrameRef.current = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + step);
           } else {
-            // Sequence completed at 100%! Seamlessly glide to countdown section
+            // Sequence completed! Seamlessly glide to countdown section
             triggerGalleryTransition();
           }
         } else if (e.deltaY < 0) {
@@ -224,7 +227,9 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
           if (targetFrameRef.current > 0) {
             e.preventDefault();
             const absDelta = Math.abs(e.deltaY);
-            const step = absDelta < 50 ? Math.max(1.2, absDelta * 0.14) : Math.min(10, Math.max(3, absDelta / 16));
+            const step = absDelta < 50
+              ? Math.max(3.5, absDelta * 0.38)
+              : Math.min(28, Math.max(10, absDelta * 0.22));
             targetFrameRef.current = Math.max(0, targetFrameRef.current - step);
           }
         }
@@ -233,48 +238,64 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
 
     // 2. Mobile Kinetic Touch Momentum Engine (Naturally Smooth 1-to-2 Swipe Completion)
     let touchPrevY = 0;
-    let touchPrevTime = 0;
-    let currentVelocity = 0; // px per ms
+    let touchPrevX = 0;
+    let touchHistory = []; // { y, time }
     let isTouchingHero = false;
 
     const handleTouchStart = (e) => {
       if (e.touches && e.touches.length > 0) {
-        touchPrevY = e.touches[0].clientY;
-        touchPrevTime = performance.now();
-        currentVelocity = 0;
+        const clientY = e.touches[0].clientY;
+        const clientX = e.touches[0].clientX;
+        const now = performance.now();
+
+        touchPrevY = clientY;
+        touchPrevX = clientX;
+        touchHistory = [{ y: clientY, time: now }];
         momentumVelocityRef.current = 0; // Halt any coasting immediately on new touch
 
-        const isHeroInView = window.scrollY < window.innerHeight * 0.6;
+        const isHeroInView = window.scrollY < window.innerHeight * 0.55;
         isTouchingHero = isHeroInView;
       }
     };
 
     const handleTouchMove = (e) => {
       if (!isTouchingHero || !e.touches || e.touches.length === 0) return;
-      const isHeroInView = window.scrollY < window.innerHeight * 0.6;
+      if (isTransitioningRef.current) return; // Do not block native scrolling during section transition
+
+      const isHeroInView = window.scrollY < window.innerHeight * 0.55;
       if (!isHeroInView) return;
 
       const currentY = e.touches[0].clientY;
+      const currentX = e.touches[0].clientX;
       const currentTime = performance.now();
-      const dt = Math.max(8, currentTime - touchPrevTime);
+
       const dy = touchPrevY - currentY; // dy > 0 means finger dragged UP (advancing sequence)
+      const dx = Math.abs(touchPrevX - currentX);
 
-      currentVelocity = dy / dt; // Velocity in pixels / ms
-      touchPrevY = currentY;
-      touchPrevTime = currentTime;
-
-      if (e.cancelable) {
-        e.preventDefault();
+      // Track recent history over 100ms window for reliable release-velocity calculation
+      touchHistory.push({ y: currentY, time: currentTime });
+      while (touchHistory.length > 1 && currentTime - touchHistory[0].time > 100) {
+        touchHistory.shift();
       }
 
-      // Natural direct sensitivity: ~180px finger swipe naturally sweeps through ~85 frames
-      const step = dy * 0.62;
-      const nextTarget = Math.min(TOTAL_FRAMES - 1, Math.max(0, targetFrameRef.current + step));
-      targetFrameRef.current = nextTarget;
+      touchPrevY = currentY;
+      touchPrevX = currentX;
 
-      // If dragged past end, glide to next section
-      if (targetFrameRef.current >= TOTAL_FRAMES - 1 && dy > 4) {
-        triggerGalleryTransition();
+      // Only handle if gesture is primarily vertical
+      if (Math.abs(dy) > dx * 0.4) {
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+
+        // Fast & natural sensitivity: a normal thumb swipe (~100-120px) effortlessly sweeps 135-160 frames
+        const step = dy * 1.35;
+        const nextTarget = Math.min(TOTAL_FRAMES - 1, Math.max(0, targetFrameRef.current + step));
+        targetFrameRef.current = nextTarget;
+
+        // If dragged near the completion (frame 154+), naturally trigger the transition to countdown
+        if (targetFrameRef.current >= TOTAL_FRAMES - 6 && dy > 1.5) {
+          triggerGalleryTransition();
+        }
       }
     };
 
@@ -282,31 +303,44 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
       if (!isTouchingHero) return;
       isTouchingHero = false;
 
-      // Kinetic Inertia: If user flicked their finger with speed, carry sequence forward with natural momentum
-      if (Math.abs(currentVelocity) > 0.12) {
-        // Boost initial momentum velocity based on flick speed
-        momentumVelocityRef.current = Math.min(14, Math.max(-14, currentVelocity * 10));
-      } else if (targetFrameRef.current >= TOTAL_FRAMES - 1) {
+      if (isTransitioningRef.current) return;
+
+      // Kinetic Inertia: calculate true release velocity across recent 100ms window
+      if (touchHistory.length >= 2) {
+        const oldest = touchHistory[0];
+        const newest = touchHistory[touchHistory.length - 1];
+        const timeDiff = Math.max(10, newest.time - oldest.time);
+        const distanceDiff = oldest.y - newest.y; // positive = dragged UP
+        const avgVelocity = distanceDiff / timeDiff; // pixels per ms
+
+        // If flicked with natural speed, carry sequence forward with silky momentum
+        if (Math.abs(avgVelocity) > 0.035) {
+          // Boost initial momentum velocity based on flick speed
+          momentumVelocityRef.current = Math.min(26, Math.max(-26, avgVelocity * 22));
+        }
+      }
+
+      if (targetFrameRef.current >= TOTAL_FRAMES - 6) {
         triggerGalleryTransition();
       }
     };
 
     // 3. Keyboard Arrow Keys
     const handleKeyDown = (e) => {
-      const isHeroInView = window.scrollY < window.innerHeight * 0.6;
+      const isHeroInView = window.scrollY < window.innerHeight * 0.55;
       if (!isHeroInView) return;
 
       if (['ArrowDown', 'PageDown', ' '].includes(e.key)) {
-        if (targetFrameRef.current < TOTAL_FRAMES - 1) {
+        if (targetFrameRef.current < TOTAL_FRAMES - 4) {
           e.preventDefault();
-          targetFrameRef.current = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + 8);
+          targetFrameRef.current = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + 22);
         } else {
           triggerGalleryTransition();
         }
       } else if (['ArrowUp', 'PageUp'].includes(e.key)) {
         if (targetFrameRef.current > 0) {
           e.preventDefault();
-          targetFrameRef.current = Math.max(0, targetFrameRef.current - 8);
+          targetFrameRef.current = Math.max(0, targetFrameRef.current - 22);
         }
       }
     };
@@ -368,9 +402,9 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
           TOTAL_FRAMES - 1,
           Math.max(0, targetFrameRef.current + momentumVelocityRef.current)
         );
-        momentumVelocityRef.current *= 0.91; // Silky smooth natural friction decay
+        momentumVelocityRef.current *= 0.93; // Silky smooth natural friction decay
 
-        if (targetFrameRef.current >= TOTAL_FRAMES - 1) {
+        if (targetFrameRef.current >= TOTAL_FRAMES - 5 && momentumVelocityRef.current > 0) {
           momentumVelocityRef.current = 0;
           triggerGalleryTransition();
         }
@@ -386,8 +420,8 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
         if (Math.abs(delta) < 0.005) {
           currentFrameRef.current = target;
         } else {
-          // Liquid butter-smooth interpolation: 0.18 provides cinematic weight
-          currentFrameRef.current += delta * 0.18;
+          // Liquid butter-smooth interpolation: 0.22 provides silky responsive feel
+          currentFrameRef.current += delta * 0.22;
         }
       }
 
