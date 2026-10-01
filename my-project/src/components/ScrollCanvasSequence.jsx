@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 const TOTAL_FRAMES = 160;
 
-// Format frame URL: /frames/ezgif-frame-001.jpg to /frames/ezgif-frame-120.jpg
+// Format frame URL: /frames/ezgif-frame-001.jpg to /frames/ezgif-frame-160.jpg
 const getFrameUrl = (index) => {
   const frameNumber = String(index + 1).padStart(3, '0');
   return `/frames/ezgif-frame-${frameNumber}.jpg`;
@@ -15,10 +15,9 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
   const currentFrameRef = useRef(0);
   const targetFrameRef = useRef(0);
   const lastDrawnIndexRef = useRef(-1);
+  const lastProgressRef = useRef(-1);
   const rafIdRef = useRef(null);
-  const hasAutoTransitionedRef = useRef(false);
-  const autoScrollTimerRef = useRef(null);
-  const extraScrollsRef = useRef(0);
+  const isTransitioningRef = useRef(false);
 
   const dimensionsRef = useRef({
     width: typeof window !== 'undefined' ? window.innerWidth : 1920,
@@ -27,16 +26,14 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
   });
 
   const [initialFrameLoaded, setInitialFrameLoaded] = useState(false);
-  const [currentDisplayFrame, setCurrentDisplayFrame] = useState(1);
 
-  // Progressive preloader
+  // High-Speed Progressive Preloader Optimized for Cloud/Render CDNs
   useEffect(() => {
     let isCancelled = false;
     const images = imagesRef.current;
     const loadedFlags = loadedFlagsRef.current;
 
-    // Load a single frame and mark it
-    const loadFrame = (index) => {
+    const loadSingleFrame = (index) => {
       if (images[index] && loadedFlags[index]) return Promise.resolve(images[index]);
 
       return new Promise((resolve) => {
@@ -56,56 +53,45 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
           if (isCancelled) return;
           images[index] = img;
           loadedFlags[index] = true;
-          if (index === 0) {
-            setInitialFrameLoaded(true);
-          }
+          if (index === 0) setInitialFrameLoaded(true);
           resolve(img);
         };
 
-        img.onerror = () => {
-          resolve(null);
-        };
+        img.onerror = () => resolve(null);
       });
     };
 
-    // Priority 1: Load frame 0 immediately for instant render
-    loadFrame(0).then(() => {
+    // 1. Immediately load frame 0 for instant visual display
+    loadSingleFrame(0).then(() => {
       if (isCancelled) return;
 
-      // Priority 2: Preload initial frames (1-20) and keyframes across the sequence
-      const priorityIndices = [];
-      for (let i = 1; i <= 20; i++) priorityIndices.push(i);
-      for (let i = 25; i < TOTAL_FRAMES; i += 4) priorityIndices.push(i);
+      // 2. Preload first 25 frames and keyframe anchors (every 4th frame across the sequence)
+      const priorityQueue = [];
+      for (let i = 1; i <= 25 && i < TOTAL_FRAMES; i++) priorityQueue.push(i);
+      for (let i = 28; i < TOTAL_FRAMES; i += 4) priorityQueue.push(i);
 
-      Promise.all(priorityIndices.map(loadFrame)).then(() => {
+      Promise.all(priorityQueue.map(loadSingleFrame)).then(() => {
         if (isCancelled) return;
 
-        // Priority 3: Progressively preload remaining frames in batches
-        const remainingIndices = [];
+        // 3. Fast concurrent pool for all remaining frames
+        const remaining = [];
         for (let i = 0; i < TOTAL_FRAMES; i++) {
-          if (!loadedFlags[i]) remainingIndices.push(i);
+          if (!loadedFlags[i]) remaining.push(i);
         }
 
-        let batchIdx = 0;
-        const batchSize = 8;
-
-        const loadNextBatch = () => {
-          if (isCancelled || batchIdx >= remainingIndices.length) return;
-          const currentBatch = remainingIndices.slice(batchIdx, batchIdx + batchSize);
-          batchIdx += batchSize;
-
-          Promise.all(currentBatch.map(loadFrame)).then(() => {
-            if (!isCancelled) {
-              if (window.requestIdleCallback) {
-                window.requestIdleCallback(loadNextBatch, { timeout: 100 });
-              } else {
-                setTimeout(loadNextBatch, 25);
-              }
-            }
+        let idx = 0;
+        const CONCURRENCY = 8;
+        const loadNextInPool = () => {
+          if (isCancelled || idx >= remaining.length) return;
+          const currentIdx = remaining[idx++];
+          loadSingleFrame(currentIdx).then(() => {
+            if (!isCancelled) loadNextInPool();
           });
         };
 
-        loadNextBatch();
+        for (let c = 0; c < CONCURRENCY && c < remaining.length; c++) {
+          loadNextInPool();
+        }
       });
     });
 
@@ -114,7 +100,7 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
     };
   }, []);
 
-  // Find nearest loaded frame to guarantee zero flicker
+  // Find nearest loaded frame to guarantee zero flicker / blank frames
   const getRenderableImage = useCallback((targetIndex) => {
     const images = imagesRef.current;
     const loaded = loadedFlagsRef.current;
@@ -123,22 +109,17 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
       return images[targetIndex];
     }
 
-    // Scan backwards and forwards for closest available frame
     for (let offset = 1; offset < TOTAL_FRAMES; offset++) {
       const prev = targetIndex - offset;
-      if (prev >= 0 && loaded[prev] && images[prev]) {
-        return images[prev];
-      }
+      if (prev >= 0 && loaded[prev] && images[prev]) return images[prev];
       const next = targetIndex + offset;
-      if (next < TOTAL_FRAMES && loaded[next] && images[next]) {
-        return images[next];
-      }
+      if (next < TOTAL_FRAMES && loaded[next] && images[next]) return images[next];
     }
 
     return images[0] || null;
   }, []);
 
-  // Draw image on canvas with high-DPR "cover" aspect ratio
+  // Draw image on canvas with high-DPR "cover" aspect ratio and minimal raster operations
   const drawFrame = useCallback((frameIdx) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -151,7 +132,6 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
     const { width, height } = dimensionsRef.current;
     if (width === 0 || height === 0) return;
 
-    // Cover logic
     const imgWidth = img.naturalWidth;
     const imgHeight = img.naturalHeight;
     const scale = Math.max(width / imgWidth, height / imgHeight);
@@ -160,17 +140,11 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
     const dx = (width - drawWidth) / 2;
     const dy = (height - drawHeight) / 2;
 
-    ctx.clearRect(0, 0, width, height);
-
-    // Deep haveli teakwood base matching global palette
-    ctx.fillStyle = '#140e0a';
-    ctx.fillRect(0, 0, width, height);
-
     ctx.drawImage(img, dx, dy, drawWidth, drawHeight);
     lastDrawnIndexRef.current = frameIdx;
   }, [getRenderableImage]);
 
-  // Handle Resize and Retina DPR
+  // Handle Resize and DPR
   const handleResize = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -190,173 +164,125 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
     if (ctx) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
+      ctx.imageSmoothingQuality = 'medium';
     }
 
     drawFrame(Math.round(currentFrameRef.current));
   }, [drawFrame]);
 
-  // Setup Resize Listener
   useEffect(() => {
     handleResize();
     window.addEventListener('resize', handleResize, { passive: true });
     return () => window.removeEventListener('resize', handleResize);
   }, [handleResize]);
 
-  const isTransitioningRef = useRef(false);
-
-  // Smooth transition to next section (Wedding Countdown or Gallery)
+  // Butter-Smooth Glide into Next Section (Countdown or Gallery)
   const triggerGalleryTransition = useCallback(() => {
-    if (autoScrollTimerRef.current) {
-      clearTimeout(autoScrollTimerRef.current);
-      autoScrollTimerRef.current = null;
-    }
+    if (isTransitioningRef.current) return;
     isTransitioningRef.current = true;
+
     const targetElement = document.getElementById('countdown') || document.getElementById('gallery');
     if (targetElement) {
-      targetElement.scrollIntoView({ behavior: 'smooth' });
+      const topOffset = targetElement.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({
+        top: topOffset,
+        behavior: 'smooth'
+      });
     }
+
     setTimeout(() => {
       isTransitioningRef.current = false;
-    }, 850);
+    }, 900);
+
     if (onAnimationComplete) {
       onAnimationComplete();
     }
   }, [onAnimationComplete]);
 
-  // Unified Scroll, Wheel, Touch, and Keyboard Listeners
+  // Unified Scroll, Wheel, and Mobile Touch Handlers
   useEffect(() => {
-    // 1. Direct Wheel Handler: locks hero until 120 frames finish + 2 EXTRA SCROLLS headroom
+    // 1. Mouse Wheel Handler for Desktop
     const handleWheel = (e) => {
-      if (isTransitioningRef.current) return;
-      const isAtTop = window.scrollY < 20;
+      const isAtTop = window.scrollY < 15;
 
       if (isAtTop) {
         if (e.deltaY > 0) {
           // User is scrolling DOWN
           if (targetFrameRef.current < TOTAL_FRAMES - 1) {
             e.preventDefault();
-
-            // Smooth step for trackpads, brisk for mouse wheels
             const absDelta = Math.abs(e.deltaY);
-            let step;
-            if (absDelta < 50) {
-              step = Math.max(0.4, absDelta * 0.08);
-            } else {
-              step = Math.min(8, Math.max(2.5, absDelta / 28));
-            }
-
-            const next = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + step);
-            targetFrameRef.current = next;
+            const step = absDelta < 50 ? Math.max(0.6, absDelta * 0.08) : Math.min(7, Math.max(2, absDelta / 24));
+            targetFrameRef.current = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + step);
           } else {
-            // Sequence completed at 100%! User explicitly requested 2 extra scrolls before transitioning
-            e.preventDefault();
-            extraScrollsRef.current += 1;
-            if (extraScrollsRef.current >= 2) {
-              triggerGalleryTransition();
-            }
+            // Sequence completed at 100%! Seamlessly glide to countdown section
+            triggerGalleryTransition();
           }
         } else if (e.deltaY < 0) {
           // User is scrolling UP
-          if (extraScrollsRef.current > 0) {
-            e.preventDefault();
-            extraScrollsRef.current -= 1;
-          } else if (targetFrameRef.current > 0) {
+          if (targetFrameRef.current > 0) {
             e.preventDefault();
             const absDelta = Math.abs(e.deltaY);
-            let step;
-            if (absDelta < 50) {
-              step = Math.max(0.4, absDelta * 0.08);
-            } else {
-              step = Math.min(8, Math.max(2.5, absDelta / 28));
-            }
-
+            const step = absDelta < 50 ? Math.max(0.6, absDelta * 0.08) : Math.min(7, Math.max(2, absDelta / 24));
             targetFrameRef.current = Math.max(0, targetFrameRef.current - step);
           }
         }
       }
     };
 
-    // 2. Touch gesture handler for mobile
-    let touchStartY = 0;
+    // 2. High-Performance Mobile Touch Gestures
+    let lastTouchY = 0;
     const handleTouchStart = (e) => {
       if (e.touches && e.touches.length > 0) {
-        touchStartY = e.touches[0].clientY;
+        lastTouchY = e.touches[0].clientY;
       }
     };
 
     const handleTouchMove = (e) => {
-      if (isTransitioningRef.current) return;
-      const isAtTop = window.scrollY < 20;
-      if (!isAtTop || !e.touches || e.touches.length === 0) return;
-
+      if (!e.touches || e.touches.length === 0) return;
       const currentY = e.touches[0].clientY;
-      const diffY = touchStartY - currentY; // diffY > 0 means dragging up = scrolling DOWN
+      const diffY = lastTouchY - currentY; // diffY > 0 means dragging up = scrolling DOWN
+      lastTouchY = currentY;
 
-      if (diffY > 0) {
-        if (targetFrameRef.current < TOTAL_FRAMES - 1) {
-          if (e.cancelable) e.preventDefault();
-          touchStartY = currentY;
-          const step = Math.min(6, Math.max(0.8, (diffY / 18) * 1.5));
-          const next = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + step);
-          targetFrameRef.current = next;
-        } else {
-          // Reached end, require 2 extra swipe gestures
-          if (e.cancelable) e.preventDefault();
-          touchStartY = currentY;
-          extraScrollsRef.current += 1;
-          if (extraScrollsRef.current >= 2) {
+      const isAtTop = window.scrollY < 15;
+
+      if (isAtTop) {
+        if (diffY > 0) {
+          // Swiping UP (scrolling DOWN)
+          if (targetFrameRef.current < TOTAL_FRAMES - 1) {
+            if (e.cancelable) e.preventDefault();
+            const step = Math.min(7, Math.max(0.8, (diffY / 10) * 1.5));
+            targetFrameRef.current = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + step);
+          } else {
+            // Last frame reached! Smoothly transition to next section without freezing touch
             triggerGalleryTransition();
           }
-        }
-      } else if (diffY < 0) {
-        if (extraScrollsRef.current > 0) {
-          if (e.cancelable) e.preventDefault();
-          touchStartY = currentY;
-          extraScrollsRef.current -= 1;
-        } else if (targetFrameRef.current > 0) {
-          if (e.cancelable) e.preventDefault();
-          touchStartY = currentY;
-          const step = Math.min(6, Math.max(0.8, (Math.abs(diffY) / 18) * 1.5));
-          targetFrameRef.current = Math.max(0, targetFrameRef.current - step);
+        } else if (diffY < 0) {
+          // Swiping DOWN (scrolling UP)
+          if (targetFrameRef.current > 0) {
+            if (e.cancelable) e.preventDefault();
+            const step = Math.min(7, Math.max(0.8, (Math.abs(diffY) / 10) * 1.5));
+            targetFrameRef.current = Math.max(0, targetFrameRef.current - step);
+          }
         }
       }
     };
 
     // 3. Keyboard Arrow Keys
     const handleKeyDown = (e) => {
-      if (isTransitioningRef.current) return;
-      const isAtTop = window.scrollY < 20;
+      const isAtTop = window.scrollY < 15;
       if (!isAtTop) return;
 
       if (['ArrowDown', 'PageDown', ' '].includes(e.key)) {
         if (targetFrameRef.current < TOTAL_FRAMES - 1) {
           e.preventDefault();
-          const next = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + 5);
-          targetFrameRef.current = next;
+          targetFrameRef.current = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + 5);
         } else {
-          e.preventDefault();
-          extraScrollsRef.current += 1;
-          if (extraScrollsRef.current >= 2) {
-            triggerGalleryTransition();
-          }
+          triggerGalleryTransition();
         }
       } else if (['ArrowUp', 'PageUp'].includes(e.key)) {
-        if (extraScrollsRef.current > 0) {
-          e.preventDefault();
-          extraScrollsRef.current -= 1;
-        } else if (targetFrameRef.current > 0) {
+        if (targetFrameRef.current > 0) {
           e.preventDefault();
           targetFrameRef.current = Math.max(0, targetFrameRef.current - 5);
-        }
-      }
-    };
-
-    // 4. Scroll listener for scrollbar drag or fast manual scrolling
-    const handleScroll = () => {
-      if (window.scrollY > window.innerHeight * 0.4) {
-        if (targetFrameRef.current < TOTAL_FRAMES - 1) {
-          targetFrameRef.current = TOTAL_FRAMES - 1;
         }
       }
     };
@@ -365,19 +291,16 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('scroll', handleScroll, { passive: true });
 
     return () => {
-      if (autoScrollTimerRef.current) clearTimeout(autoScrollTimerRef.current);
       window.removeEventListener('wheel', handleWheel);
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('scroll', handleScroll);
     };
   }, [triggerGalleryTransition]);
 
-  // Persistent Animation Loop using requestAnimationFrame with smooth interpolation
+  // Persistent 60fps/120fps Animation Loop with zero unused React re-renders
   useEffect(() => {
     let isRunning = true;
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -391,12 +314,11 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
       if (prefersReducedMotion) {
         currentFrameRef.current = target;
       } else {
-        // Butter-smooth lerp interpolation: 0.16 gives Apple-level momentum
         const delta = target - current;
         if (Math.abs(delta) < 0.005) {
           currentFrameRef.current = target;
         } else {
-          currentFrameRef.current += delta * 0.20;
+          currentFrameRef.current += delta * 0.22;
         }
       }
 
@@ -404,9 +326,14 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
 
       if (frameToDraw !== lastDrawnIndexRef.current || !initialFrameLoaded) {
         drawFrame(frameToDraw);
-        setCurrentDisplayFrame(frameToDraw + 1);
-        if (onProgressChange) {
-          onProgressChange(frameToDraw / (TOTAL_FRAMES - 1), frameToDraw);
+
+        // Throttle React progress updates to save main-thread compute
+        const progress = frameToDraw / (TOTAL_FRAMES - 1);
+        if (Math.abs(progress - lastProgressRef.current) >= 0.006) {
+          lastProgressRef.current = progress;
+          if (onProgressChange) {
+            onProgressChange(progress, frameToDraw);
+          }
         }
       }
 
@@ -421,7 +348,7 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
         cancelAnimationFrame(rafIdRef.current);
       }
     };
-  }, [drawFrame, initialFrameLoaded]);
+  }, [drawFrame, initialFrameLoaded, onProgressChange]);
 
   return (
     <div className="scroll-canvas-sticky-wrapper" aria-hidden="true">
@@ -438,3 +365,4 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
     </div>
   );
 }
+

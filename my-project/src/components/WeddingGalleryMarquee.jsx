@@ -74,6 +74,9 @@ export default function WeddingGalleryMarquee() {
   const hasMovedRef = useRef(false);
   const rafIdRef = useRef(null);
 
+  const startYRef = useRef(0);
+  const lastYRef = useRef(0);
+
   // Triple set guarantees seamless mathematical infinite wrap with zero seam
   const loopItems = [...WEDDING_MOMENTS, ...WEDDING_MOMENTS, ...WEDDING_MOMENTS];
 
@@ -129,7 +132,9 @@ export default function WeddingGalleryMarquee() {
       isDraggingRef.current = true;
       setIsDraggingState(true);
       startXRef.current = e.touches[0].clientX;
+      startYRef.current = e.touches[0].clientY;
       lastXRef.current = e.touches[0].clientX;
+      lastYRef.current = e.touches[0].clientY;
       velocityRef.current = 0;
       hasMovedRef.current = false;
     }
@@ -138,16 +143,21 @@ export default function WeddingGalleryMarquee() {
   const handleTouchMove = (e) => {
     if (!isDraggingRef.current || !e.touches || e.touches.length === 0) return;
     const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
     const deltaX = lastXRef.current - currentX;
-    lastXRef.current = currentX;
+    const totalDiffX = Math.abs(currentX - startXRef.current);
+    const totalDiffY = Math.abs(currentY - startYRef.current);
 
-    if (Math.abs(currentX - startXRef.current) > 8) {
+    lastXRef.current = currentX;
+    lastYRef.current = currentY;
+
+    // Only prevent default if horizontal drag is clearly dominant
+    if (totalDiffX > 10 && totalDiffX > totalDiffY) {
       hasMovedRef.current = true;
       if (e.cancelable) e.preventDefault();
+      offsetRef.current += deltaX;
+      velocityRef.current = deltaX;
     }
-
-    offsetRef.current += deltaX;
-    velocityRef.current = deltaX;
   };
 
   const handleTouchEnd = () => {

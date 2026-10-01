@@ -101,12 +101,14 @@ const WEDDING_EVENTS = [
 
 export default function WeddingEventsCoverflow() {
   const [activeIndex, setActiveIndex] = useState(1); // Default active on Haldi
-  const [isDragging, setIsDragging] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [currentX, setCurrentX] = useState(0);
   const [modalEvent, setModalEvent] = useState(null);
 
   const containerRef = useRef(null);
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startYRef = useRef(0);
+  const currentXRef = useRef(0);
+  const currentYRef = useRef(0);
 
   // Navigate next & prev
   const handlePrev = useCallback(() => {
@@ -127,52 +129,60 @@ export default function WeddingEventsCoverflow() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handlePrev, handleNext]);
 
-  // Touch handlers for mobile swipe
+  // Touch handlers for mobile swipe with zero re-render lag
   const handleTouchStart = (e) => {
     if (e.touches && e.touches.length > 0) {
-      setStartX(e.touches[0].clientX);
-      setCurrentX(e.touches[0].clientX);
-      setIsDragging(true);
+      startXRef.current = e.touches[0].clientX;
+      startYRef.current = e.touches[0].clientY;
+      currentXRef.current = e.touches[0].clientX;
+      currentYRef.current = e.touches[0].clientY;
+      isDraggingRef.current = true;
     }
   };
 
   const handleTouchMove = (e) => {
-    if (!isDragging || !e.touches || e.touches.length === 0) return;
-    setCurrentX(e.touches[0].clientX);
+    if (!isDraggingRef.current || !e.touches || e.touches.length === 0) return;
+    currentXRef.current = e.touches[0].clientX;
+    currentYRef.current = e.touches[0].clientY;
   };
 
   const handleTouchEnd = () => {
-    if (!isDragging) return;
-    const diff = startX - currentX;
-    if (diff > 45) {
-      handleNext();
-    } else if (diff < -45) {
-      handlePrev();
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    const diffX = startXRef.current - currentXRef.current;
+    const diffY = startYRef.current - currentYRef.current;
+
+    // Only swipe if horizontal drag is dominant and more than 35px
+    if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
+      if (diffX > 0) {
+        handleNext();
+      } else {
+        handlePrev();
+      }
     }
-    setIsDragging(false);
   };
 
   // Mouse drag handlers for desktop swipe
   const handleMouseDown = (e) => {
-    setStartX(e.clientX);
-    setCurrentX(e.clientX);
-    setIsDragging(true);
+    startXRef.current = e.clientX;
+    currentXRef.current = e.clientX;
+    isDraggingRef.current = true;
   };
 
   const handleMouseMove = (e) => {
-    if (!isDragging) return;
-    setCurrentX(e.clientX);
+    if (!isDraggingRef.current) return;
+    currentXRef.current = e.clientX;
   };
 
   const handleMouseUp = () => {
-    if (!isDragging) return;
-    const diff = startX - currentX;
-    if (diff > 50) {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    const diffX = startXRef.current - currentXRef.current;
+    if (diffX > 45) {
       handleNext();
-    } else if (diff < -50) {
+    } else if (diffX < -45) {
       handlePrev();
     }
-    setIsDragging(false);
   };
 
   // Quick Calendar add
@@ -226,6 +236,7 @@ export default function WeddingEventsCoverflow() {
       <div
         className="coverflow-stage-viewport"
         ref={containerRef}
+        style={{ touchAction: 'pan-y' }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}

@@ -32,6 +32,8 @@ export default function WeddingDateScratchCard() {
   const celebrationParticlesRef = useRef([]);
   const celebrationRafRef = useRef(null);
   const scratchAudioCtxRef = useRef(null);
+  const lastCheckTimeRef = useRef(0);
+  const lastSoundTimeRef = useRef(0);
 
   // Live Countdown to Dec 12, 2026
   useEffect(() => {
@@ -103,8 +105,12 @@ export default function WeddingDateScratchCard() {
     }
   }, []);
 
-  // Subtle scratch whisper sound
+  // Subtle scratch whisper sound (throttled to avoid mobile audio lag)
   const playScratchSound = useCallback(() => {
+    const now = Date.now();
+    if (now - lastSoundTimeRef.current < 140) return;
+    lastSoundTimeRef.current = now;
+
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return;
@@ -116,11 +122,11 @@ export default function WeddingDateScratchCard() {
         ctx.resume();
       }
 
-      const bufferSize = Math.floor(ctx.sampleRate * 0.035);
+      const bufferSize = Math.floor(ctx.sampleRate * 0.03);
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * 0.3;
+        data[i] = (Math.random() * 2 - 1) * 0.25;
       }
       const noise = ctx.createBufferSource();
       noise.buffer = buffer;
@@ -130,8 +136,8 @@ export default function WeddingDateScratchCard() {
       filter.frequency.value = 2400;
 
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.025, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.035);
+      gain.gain.setValueAtTime(0.02, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.03);
 
       noise.connect(filter);
       filter.connect(gain);
@@ -462,8 +468,8 @@ export default function WeddingDateScratchCard() {
       const percent = Math.round((transparentPixels / totalSampled) * 100);
       setScratchPercent(percent);
 
-      // Once user scratches 38% or more, automatically trigger celebration reveal
-      if (percent >= 38) {
+      // Once user scratches 32% or more, automatically trigger celebration reveal
+      if (percent >= 32) {
         triggerReveal();
       }
     } catch (e) {
@@ -481,7 +487,7 @@ export default function WeddingDateScratchCard() {
     ctx.globalCompositeOperation = 'destination-out';
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.lineWidth = 50; // Thick realistic coin scratch size
+    ctx.lineWidth = 56; // Broad realistic coin scratch size for smooth mobile performance
 
     ctx.beginPath();
     if (lastPointRef.current) {
@@ -489,7 +495,7 @@ export default function WeddingDateScratchCard() {
       ctx.lineTo(x, y);
       ctx.stroke();
     } else {
-      ctx.arc(x, y, 25, 0, Math.PI * 2);
+      ctx.arc(x, y, 28, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -515,13 +521,19 @@ export default function WeddingDateScratchCard() {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     scratchAtPoint(x, y);
-    checkScratchPercentage();
+
+    const now = Date.now();
+    if (now - lastCheckTimeRef.current > 280) {
+      lastCheckTimeRef.current = now;
+      checkScratchPercentage();
+    }
   };
 
   const handleMouseUp = () => {
     isDrawingRef.current = false;
     lastPointRef.current = null;
     setIsScratching(false);
+    checkScratchPercentage();
   };
 
   // Touch Scratch Event Handlers (for mobile & tablets)
@@ -543,13 +555,19 @@ export default function WeddingDateScratchCard() {
     const x = e.touches[0].clientX - rect.left;
     const y = e.touches[0].clientY - rect.top;
     scratchAtPoint(x, y);
-    checkScratchPercentage();
+
+    const now = Date.now();
+    if (now - lastCheckTimeRef.current > 280) {
+      lastCheckTimeRef.current = now;
+      checkScratchPercentage();
+    }
   };
 
   const handleTouchEnd = () => {
     isDrawingRef.current = false;
     lastPointRef.current = null;
     setIsScratching(false);
+    checkScratchPercentage();
   };
 
   // Reset & Re-scratch card
@@ -731,6 +749,7 @@ export default function WeddingDateScratchCard() {
           <canvas
             ref={canvasRef}
             className={`scratch-foil-canvas ${isScratching ? 'is-scratching' : ''}`}
+            style={{ touchAction: 'none' }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
