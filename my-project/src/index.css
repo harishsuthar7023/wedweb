@@ -1,0 +1,157 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Syne:wght@500;700;800&display=swap');
+@import "tailwindcss";
+
+:root {
+  --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Outfit', sans-serif;
+  --font-editorial: 'Syne', sans-serif;
+
+  /* Authentic Color Palette extracted directly from ezgif-frame-113.jpg */
+  --bg-dark: #140e0a;
+  /* Deep Antique Teakwood / Haveli Timber */
+  --bg-deep: #1c130d;
+  /* Heritage Sandstone Room Shadow */
+  --bg-card: rgba(28, 20, 14, 0.88);
+  /* Antique Teakwood Glass */
+  --bg-card-hover: rgba(40, 28, 19, 0.94);
+
+  /* Warm Haveli Sandstone Glassmorphism */
+  --glass-bg: rgba(229, 190, 122, 0.05);
+  --glass-bg-hover: rgba(229, 190, 122, 0.09);
+  --glass-border: rgba(212, 163, 89, 0.32);
+  --glass-border-bright: rgba(229, 190, 122, 0.65);
+  --glass-blur: blur(20px);
+
+  /* Sunlit Ochre to Terracotta Clay Gradient */
+  --cta-gradient: linear-gradient(135deg, #ba6238 0%, #d4a359 50%, #e5be7a 100%);
+  --cta-gradient-hover: linear-gradient(135deg, #cc6f40 0%, #e0b067 50%, #edd193 100%);
+  --cta-glow: 0 8px 30px rgba(212, 163, 89, 0.3), 0 0 40px rgba(186, 98, 56, 0.22);
+  --cta-glow-hover: 0 12px 38px rgba(212, 163, 89, 0.45), 0 0 50px rgba(186, 98, 56, 0.35);
+
+  /* Warm Limewash & Sunlit Ivory Text */
+  --text-primary: #faf6ed;
+  --text-secondary: rgba(245, 237, 222, 0.82);
+  --text-muted: rgba(214, 197, 165, 0.62);
+  --text-link: #e5be7a;
+  --text-link-hover: #ffffff;
+
+  /* Regional Heritage Accents from frame 113 */
+  --gold-ochre: #d4a359;
+  --gold-sunbeam: #e5be7a;
+  --terracotta: #ba6238;
+  --door-blue: #345e7e;
+  /* Vintage painted door indigo from frame 113 */
+}
+
+/* * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+} */
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  background-color: var(--bg-dark);
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  selection-background-color: #d4a359;
+  selection-color: #140e0a;
+}
+
+::selection {
+  background: rgba(212, 163, 89, 0.4);
+  color: #faf6ed;
+}
+
+/* Animations */
+@keyframes pulseGlow {
+
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes ping {
+
+  75%,
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+@keyframes floatParticle {
+
+  0%,
+  100% {
+    transform: translateY(0px) translateX(0px);
+    opacity: 0.3;
+  }
+
+  50% {
+    transform: translateY(-20px) translateX(10px);
+    opacity: 0.8;
+  }
+}
+
+@keyframes softGlow {
+
+  0%,
+  100% {
+    opacity: 0.4;
+    filter: drop-shadow(0 0 15px rgba(157, 43, 245, 0.4));
+  }
+
+  50% {
+    opacity: 0.75;
+    filter: drop-shadow(0 0 25px rgba(255, 107, 53, 0.5));
+  }
+}
+
+@keyframes textShimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
