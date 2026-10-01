@@ -229,48 +229,58 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
       }
     };
 
-    // 2. High-Performance Mobile Touch Gestures
-    let lastTouchY = 0;
+    // 2. High-Performance Mobile Touch Gestures (Responsive 1-to-1 Proportional Finger Tracking)
+    let touchStartY = 0;
+    let initialFrameAtTouch = 0;
+    let isTouchingHero = false;
+
     const handleTouchStart = (e) => {
       if (e.touches && e.touches.length > 0) {
-        lastTouchY = e.touches[0].clientY;
+        touchStartY = e.touches[0].clientY;
+        initialFrameAtTouch = targetFrameRef.current;
+        const isHeroInView = window.scrollY < window.innerHeight * 0.6;
+        isTouchingHero = isHeroInView;
       }
     };
 
     const handleTouchMove = (e) => {
-      if (!e.touches || e.touches.length === 0) return;
+      if (!isTouchingHero || !e.touches || e.touches.length === 0) return;
+      const isHeroInView = window.scrollY < window.innerHeight * 0.6;
+      if (!isHeroInView) return;
+
       const currentY = e.touches[0].clientY;
-      const diffY = lastTouchY - currentY; // diffY > 0 means dragging up = scrolling DOWN
-      lastTouchY = currentY;
+      const totalDragY = touchStartY - currentY; // totalDragY > 0 means dragged UP (scrolling DOWN)
 
-      const isAtTop = window.scrollY < 15;
+      if (e.cancelable) {
+        e.preventDefault();
+      }
 
-      if (isAtTop) {
-        if (diffY > 0) {
-          // Swiping UP (scrolling DOWN)
-          if (targetFrameRef.current < TOTAL_FRAMES - 1) {
-            if (e.cancelable) e.preventDefault();
-            const step = Math.min(7, Math.max(0.8, (diffY / 10) * 1.5));
-            targetFrameRef.current = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + step);
-          } else {
-            // Last frame reached! Smoothly transition to next section without freezing touch
-            triggerGalleryTransition();
-          }
-        } else if (diffY < 0) {
-          // Swiping DOWN (scrolling UP)
-          if (targetFrameRef.current > 0) {
-            if (e.cancelable) e.preventDefault();
-            const step = Math.min(7, Math.max(0.8, (Math.abs(diffY) / 10) * 1.5));
-            targetFrameRef.current = Math.max(0, targetFrameRef.current - step);
-          }
-        }
+      // Smooth direct sensitivity: natural finger flick advances frames effortlessly
+      const sensitivity = Math.max(260, window.innerHeight * 0.38);
+      const deltaFrames = (totalDragY / sensitivity) * 110;
+      const nextTarget = Math.min(TOTAL_FRAMES - 1, Math.max(0, initialFrameAtTouch + deltaFrames));
+      targetFrameRef.current = nextTarget;
+
+      // If user has dragged past the sequence end, seamlessly glide to next section
+      if (initialFrameAtTouch + deltaFrames >= TOTAL_FRAMES - 1 + 12) {
+        triggerGalleryTransition();
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (!isTouchingHero) return;
+      isTouchingHero = false;
+
+      // If completed on touch release, glide to countdown section
+      if (targetFrameRef.current >= TOTAL_FRAMES - 1) {
+        triggerGalleryTransition();
       }
     };
 
     // 3. Keyboard Arrow Keys
     const handleKeyDown = (e) => {
-      const isAtTop = window.scrollY < 15;
-      if (!isAtTop) return;
+      const isHeroInView = window.scrollY < window.innerHeight * 0.6;
+      if (!isHeroInView) return;
 
       if (['ArrowDown', 'PageDown', ' '].includes(e.key)) {
         if (targetFrameRef.current < TOTAL_FRAMES - 1) {
@@ -287,18 +297,48 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
       }
     };
 
+    const canvasEl = canvasRef.current;
+    const containerEl = containerRef?.current;
+
     window.addEventListener('wheel', handleWheel, { passive: false });
-    window.addEventListener('touchstart', handleTouchStart, { passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('keydown', handleKeyDown);
+
+    // Multi-target touch attachment ensures 100% event capture across all mobile screen areas
+    window.addEventListener('touchstart', handleTouchStart, { passive: false });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    if (canvasEl) {
+      canvasEl.addEventListener('touchstart', handleTouchStart, { passive: false });
+      canvasEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+      canvasEl.addEventListener('touchend', handleTouchEnd, { passive: true });
+    }
+    if (containerEl) {
+      containerEl.addEventListener('touchstart', handleTouchStart, { passive: false });
+      containerEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+      containerEl.addEventListener('touchend', handleTouchEnd, { passive: true });
+    }
 
     return () => {
       window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('keydown', handleKeyDown);
+
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('touchend', handleTouchEnd);
+
+      if (canvasEl) {
+        canvasEl.removeEventListener('touchstart', handleTouchStart);
+        canvasEl.removeEventListener('touchmove', handleTouchMove);
+        canvasEl.removeEventListener('touchend', handleTouchEnd);
+      }
+      if (containerEl) {
+        containerEl.removeEventListener('touchstart', handleTouchStart);
+        containerEl.removeEventListener('touchmove', handleTouchMove);
+        containerEl.removeEventListener('touchend', handleTouchEnd);
+      }
     };
-  }, [triggerGalleryTransition]);
+  }, [containerRef, triggerGalleryTransition]);
 
   // Persistent 60fps/120fps Animation Loop with zero unused React re-renders
   useEffect(() => {
