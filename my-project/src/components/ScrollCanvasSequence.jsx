@@ -18,6 +18,7 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
   const lastProgressRef = useRef(-1);
   const rafIdRef = useRef(null);
   const isTransitioningRef = useRef(false);
+  const momentumVelocityRef = useRef(0);
 
   const dimensionsRef = useRef({
     width: typeof window !== 'undefined' ? window.innerWidth : 1920,
@@ -180,6 +181,7 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
   const triggerGalleryTransition = useCallback(() => {
     if (isTransitioningRef.current) return;
     isTransitioningRef.current = true;
+    momentumVelocityRef.current = 0;
 
     const targetElement = document.getElementById('countdown') || document.getElementById('gallery');
     if (targetElement) {
@@ -199,19 +201,19 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
     }
   }, [onAnimationComplete]);
 
-  // Unified Scroll, Wheel, and Mobile Touch Handlers
+  // Unified Scroll, Wheel, and Kinetic Touch Momentum Handlers
   useEffect(() => {
     // 1. Mouse Wheel Handler for Desktop
     const handleWheel = (e) => {
-      const isAtTop = window.scrollY < 15;
+      const isHeroInView = window.scrollY < window.innerHeight * 0.6;
 
-      if (isAtTop) {
+      if (isHeroInView) {
         if (e.deltaY > 0) {
           // User is scrolling DOWN
           if (targetFrameRef.current < TOTAL_FRAMES - 1) {
             e.preventDefault();
             const absDelta = Math.abs(e.deltaY);
-            const step = absDelta < 50 ? Math.max(0.6, absDelta * 0.08) : Math.min(7, Math.max(2, absDelta / 24));
+            const step = absDelta < 50 ? Math.max(1.2, absDelta * 0.14) : Math.min(10, Math.max(3, absDelta / 16));
             targetFrameRef.current = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + step);
           } else {
             // Sequence completed at 100%! Seamlessly glide to countdown section
@@ -222,22 +224,26 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
           if (targetFrameRef.current > 0) {
             e.preventDefault();
             const absDelta = Math.abs(e.deltaY);
-            const step = absDelta < 50 ? Math.max(0.6, absDelta * 0.08) : Math.min(7, Math.max(2, absDelta / 24));
+            const step = absDelta < 50 ? Math.max(1.2, absDelta * 0.14) : Math.min(10, Math.max(3, absDelta / 16));
             targetFrameRef.current = Math.max(0, targetFrameRef.current - step);
           }
         }
       }
     };
 
-    // 2. High-Performance Mobile Touch Gestures (Responsive 1-to-1 Proportional Finger Tracking)
-    let touchStartY = 0;
-    let initialFrameAtTouch = 0;
+    // 2. Mobile Kinetic Touch Momentum Engine (Naturally Smooth 1-to-2 Swipe Completion)
+    let touchPrevY = 0;
+    let touchPrevTime = 0;
+    let currentVelocity = 0; // px per ms
     let isTouchingHero = false;
 
     const handleTouchStart = (e) => {
       if (e.touches && e.touches.length > 0) {
-        touchStartY = e.touches[0].clientY;
-        initialFrameAtTouch = targetFrameRef.current;
+        touchPrevY = e.touches[0].clientY;
+        touchPrevTime = performance.now();
+        currentVelocity = 0;
+        momentumVelocityRef.current = 0; // Halt any coasting immediately on new touch
+
         const isHeroInView = window.scrollY < window.innerHeight * 0.6;
         isTouchingHero = isHeroInView;
       }
@@ -249,20 +255,25 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
       if (!isHeroInView) return;
 
       const currentY = e.touches[0].clientY;
-      const totalDragY = touchStartY - currentY; // totalDragY > 0 means dragged UP (scrolling DOWN)
+      const currentTime = performance.now();
+      const dt = Math.max(8, currentTime - touchPrevTime);
+      const dy = touchPrevY - currentY; // dy > 0 means finger dragged UP (advancing sequence)
+
+      currentVelocity = dy / dt; // Velocity in pixels / ms
+      touchPrevY = currentY;
+      touchPrevTime = currentTime;
 
       if (e.cancelable) {
         e.preventDefault();
       }
 
-      // Smooth direct sensitivity: natural finger flick advances frames effortlessly
-      const sensitivity = Math.max(260, window.innerHeight * 0.38);
-      const deltaFrames = (totalDragY / sensitivity) * 110;
-      const nextTarget = Math.min(TOTAL_FRAMES - 1, Math.max(0, initialFrameAtTouch + deltaFrames));
+      // Natural direct sensitivity: ~180px finger swipe naturally sweeps through ~85 frames
+      const step = dy * 0.62;
+      const nextTarget = Math.min(TOTAL_FRAMES - 1, Math.max(0, targetFrameRef.current + step));
       targetFrameRef.current = nextTarget;
 
-      // If user has dragged past the sequence end, seamlessly glide to next section
-      if (initialFrameAtTouch + deltaFrames >= TOTAL_FRAMES - 1 + 12) {
+      // If dragged past end, glide to next section
+      if (targetFrameRef.current >= TOTAL_FRAMES - 1 && dy > 4) {
         triggerGalleryTransition();
       }
     };
@@ -271,8 +282,11 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
       if (!isTouchingHero) return;
       isTouchingHero = false;
 
-      // If completed on touch release, glide to countdown section
-      if (targetFrameRef.current >= TOTAL_FRAMES - 1) {
+      // Kinetic Inertia: If user flicked their finger with speed, carry sequence forward with natural momentum
+      if (Math.abs(currentVelocity) > 0.12) {
+        // Boost initial momentum velocity based on flick speed
+        momentumVelocityRef.current = Math.min(14, Math.max(-14, currentVelocity * 10));
+      } else if (targetFrameRef.current >= TOTAL_FRAMES - 1) {
         triggerGalleryTransition();
       }
     };
@@ -285,14 +299,14 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
       if (['ArrowDown', 'PageDown', ' '].includes(e.key)) {
         if (targetFrameRef.current < TOTAL_FRAMES - 1) {
           e.preventDefault();
-          targetFrameRef.current = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + 5);
+          targetFrameRef.current = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + 8);
         } else {
           triggerGalleryTransition();
         }
       } else if (['ArrowUp', 'PageUp'].includes(e.key)) {
         if (targetFrameRef.current > 0) {
           e.preventDefault();
-          targetFrameRef.current = Math.max(0, targetFrameRef.current - 5);
+          targetFrameRef.current = Math.max(0, targetFrameRef.current - 8);
         }
       }
     };
@@ -340,13 +354,27 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
     };
   }, [containerRef, triggerGalleryTransition]);
 
-  // Persistent 60fps/120fps Animation Loop with zero unused React re-renders
+  // Persistent 60fps/120fps Animation Loop with kinetic momentum decay
   useEffect(() => {
     let isRunning = true;
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     const renderLoop = () => {
       if (!isRunning) return;
+
+      // Apply kinetic fling momentum deceleration (Apple/Android style coasting)
+      if (Math.abs(momentumVelocityRef.current) > 0.05) {
+        targetFrameRef.current = Math.min(
+          TOTAL_FRAMES - 1,
+          Math.max(0, targetFrameRef.current + momentumVelocityRef.current)
+        );
+        momentumVelocityRef.current *= 0.91; // Silky smooth natural friction decay
+
+        if (targetFrameRef.current >= TOTAL_FRAMES - 1) {
+          momentumVelocityRef.current = 0;
+          triggerGalleryTransition();
+        }
+      }
 
       const target = targetFrameRef.current;
       const current = currentFrameRef.current;
@@ -358,7 +386,8 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
         if (Math.abs(delta) < 0.005) {
           currentFrameRef.current = target;
         } else {
-          currentFrameRef.current += delta * 0.22;
+          // Liquid butter-smooth interpolation: 0.18 provides cinematic weight
+          currentFrameRef.current += delta * 0.18;
         }
       }
 
@@ -388,7 +417,7 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
         cancelAnimationFrame(rafIdRef.current);
       }
     };
-  }, [drawFrame, initialFrameLoaded, onProgressChange]);
+  }, [drawFrame, initialFrameLoaded, onProgressChange, triggerGalleryTransition]);
 
   return (
     <div className="scroll-canvas-sticky-wrapper" aria-hidden="true">
