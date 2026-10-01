@@ -30,7 +30,7 @@ export default function App() {
       <WeddingCornerMusicPlayer />
 
       {/* SECTION 1: Royal Palace Canvas Sequence & Harish & Lavina Reveal */}
-      <section className="hero-scroll-container relative w-full h-screen overflow-hidden bg-[#140e0a]" style={{ touchAction: 'none' }} ref={containerRef}>
+      <section className="hero-scroll-container relative w-full h-screen overflow-hidden bg-[#140e0a]" ref={containerRef}>
         {/* Sticky Full-Screen HTML5 Canvas driven by scroll progress */}
         <ScrollCanvasSequence
           containerRef={containerRef}
@@ -38,24 +38,27 @@ export default function App() {
           onAnimationComplete={handleExploreGallery}
         />
 
-        {/* Pinned Hero Overlay Container - completely transparent to touches */}
-        <div className="hero-content-pinned absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-10 select-none">
+        {/* Pinned Hero Overlay Container */}
+        <div className="hero-content-pinned absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-10">
           {/* Initial Scroll Prompt (fades out as user scrolls) */}
           <div
-            className="initial-scroll-hint absolute top-[14%] left-1/2 -translate-x-1/2 flex flex-col items-center gap-2.5 text-center z-20 pointer-events-none select-none"
+            className="initial-scroll-hint absolute top-[14%] left-1/2 -translate-x-1/2 flex flex-col items-center gap-2.5 text-center z-20 cursor-pointer"
             style={{
               opacity: Math.max(0, 1 - scrollProgress * 3),
+              pointerEvents: scrollProgress > 0.3 ? 'none' : 'auto',
               transform: `translateY(${scrollProgress * -20}px)`,
             }}
             aria-hidden={scrollProgress > 0.3}
+            onClick={handleExploreGallery}
+            title="Scroll or click to begin"
           >
-            <div className="royal-badge-pill inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold tracking-widest text-[#e5be7a] border border-[#d4a359]/30 bg-[#251a12]/80 uppercase shadow-lg backdrop-blur-sm pointer-events-none">
+            <div className="royal-badge-pill inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold tracking-widest text-[#e5be7a] border border-[#d4a359]/30 bg-[#251a12]/80 uppercase shadow-lg backdrop-blur-sm">
               <span className="text-[#d4a359]">✦</span>
               <span className="font-serif">|| शुभ विवाह निमंत्रण ||</span>
               <span className="text-[#d4a359]">✦</span>
             </div>
 
-            <div className="scroll-down-action flex flex-col items-center gap-1 pointer-events-none">
+            <div className="scroll-down-action flex flex-col items-center gap-1">
               <span className="scroll-mouse-icon">
                 <span className="scroll-wheel-dot"></span>
               </span>
