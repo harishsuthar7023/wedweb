@@ -30,7 +30,7 @@ export default function App() {
       <WeddingCornerMusicPlayer />
 
       {/* SECTION 1: Royal Palace Canvas Sequence & Harish & Lavina Reveal */}
-      <section className="hero-scroll-container relative w-full h-screen overflow-hidden bg-[#140e0a]" style={{ touchAction: 'none' }} ref={containerRef}>
+      <section className="hero-scroll-container relative w-full h-screen overflow-hidden bg-[#140e0a]" style={{ touchAction: 'pan-y' }} ref={containerRef}>
         {/* Sticky Full-Screen HTML5 Canvas driven by scroll progress */}
         <ScrollCanvasSequence
           containerRef={containerRef}

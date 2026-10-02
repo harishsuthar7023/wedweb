@@ -1394,7 +1394,7 @@
   max-height: 100dvh;
   overflow: hidden;
   background-color: #140e0a;
-  touch-action: none;
+  touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -1411,7 +1411,7 @@
   align-items: center;
   justify-content: center;
   background-color: #140e0a;
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 .scroll-sequence-canvas {
@@ -1422,7 +1422,7 @@
   height: 100%;
   display: block;
   z-index: 1;
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 /* Seamless luxury gold vignette - zero visible edges */
