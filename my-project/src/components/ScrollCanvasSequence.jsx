@@ -1,12 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { getFrameUrl, getLocalFrameUrl, isCloudinaryConfigured } from '../utils/cloudinary';
 
 const TOTAL_FRAMES = 160;
-
-// Format frame URL: /frames/ezgif-frame-001.jpg to /frames/ezgif-frame-160.jpg
-const getFrameUrl = (index) => {
-  const frameNumber = String(index + 1).padStart(3, '0');
-  return `/frames/ezgif-frame-${frameNumber}.jpg`;
-};
 
 export default function ScrollCanvasSequence({ containerRef, onProgressChange, onAnimationComplete }) {
   const canvasRef = useRef(null);
@@ -28,11 +23,17 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
 
   const [initialFrameLoaded, setInitialFrameLoaded] = useState(false);
 
-  // High-Speed Progressive Preloader Optimized for Cloud/Render CDNs
+  // High-Speed Progressive Preloader Optimized for Cloudinary CDN & Local Caching
   useEffect(() => {
     let isCancelled = false;
     const images = imagesRef.current;
     const loadedFlags = loadedFlagsRef.current;
+
+    if (isCloudinaryConfigured) {
+      console.log('🌸 Hero Sequence: Loading 160 frames from Cloudinary CDN ->', getFrameUrl(0));
+    } else {
+      console.log('📁 Hero Sequence: Loading frames from local /frames/ directory');
+    }
 
     const loadSingleFrame = (index) => {
       if (images[index] && loadedFlags[index]) return Promise.resolve(images[index]);
@@ -58,7 +59,23 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
           resolve(img);
         };
 
-        img.onerror = () => resolve(null);
+        img.onerror = () => {
+          // If Cloudinary URL failed, automatically fallback to local copy
+          const fallbackUrl = getLocalFrameUrl(index);
+          if (img.src !== fallbackUrl && !img.src.endsWith(fallbackUrl)) {
+            img.src = fallbackUrl;
+            img.onload = () => {
+              if (isCancelled) return;
+              images[index] = img;
+              loadedFlags[index] = true;
+              if (index === 0) setInitialFrameLoaded(true);
+              resolve(img);
+            };
+            img.onerror = () => resolve(null);
+          } else {
+            resolve(null);
+          }
+        };
       });
     };
 

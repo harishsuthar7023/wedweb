@@ -12,9 +12,9 @@ export default function WeddingInvitationReveal({ progress = 0, onExploreGallery
   // Butter-smooth entrance interpolation with ambient soft radial vignette
   const containerStyle = {
     opacity: revealProgress,
-    transform: `translateY(${(1 - revealProgress) * 35}px) scale(${0.86 + revealProgress * 0.14})`,
+    transform: `translateY(${(1 - revealProgress) * 15}px) scale(${0.86 + revealProgress * 0.01})`,
     filter: `blur(${(1 - revealProgress) * 2}px)`,
-    transition: 'opacity 0.5s ease-out, transform 1.2s ease-out, filter 1.2s ease-out',
+    transition: 'opacity 0.5s ease-out, transform 0.2s ease-out, filter 0.2s ease-out',
     // Soft radial ambient shadow directly behind text to maximize contrast on rustic wall
     // background: 'radial-gradient(ellipse 85% 75% at center, rgba(16, 10, 6, 0.76) 0%, rgba(16, 10, 6, 0.48) 55%, rgba(16, 10, 6, 0) 80%)',
   };
@@ -115,53 +115,7 @@ export default function WeddingInvitationReveal({ progress = 0, onExploreGallery
       </p>
 
       {/* Luxury Date & Venue Pill Cards (High Contrast, Deep Shadow, Gold Border) */}
-      <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 my-2.5">
-        {/* Card 1: Date */}
-        <div
-          className="flex items-center gap-3 px-5 py-2.5 rounded-2xl transition-transform duration-300 hover:scale-105"
-          style={{
-            background: 'rgba(22, 14, 9, 0.88)',
-            border: '1.5px solid rgba(212, 163, 89, 0.48)',
-            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 230, 180, 0.22)',
-            backdropFilter: 'blur(10px)',
-          }}
-        >
-          <span className="text-base sm:text-lg" role="img" aria-label="calendar">🗓️</span>
-          <div className="flex flex-col text-left">
-            <span
-              className="text-[10px] sm:text-[11px] font-bold tracking-widest text-[#e5be7a] uppercase leading-none mb-1"
-              style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}
-            >
-              शुक्रवार
-            </span>
-            <span
-              className="text-xs sm:text-sm md:text-base font-serif font-bold text-[#ffffff] tracking-wider leading-none"
-              style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}
-            >
-              12 दिसम्बर 2026
-            </span>
-          </div>
-        </div>
 
-        {/* Card 2: Venue */}
-        <div
-          className="flex items-center gap-2.5 px-5 py-3 rounded-2xl transition-transform duration-300 hover:scale-105"
-          style={{
-            background: 'rgba(22, 14, 9, 0.88)',
-            border: '1.5px solid rgba(212, 163, 89, 0.48)',
-            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 230, 180, 0.22)',
-            backdropFilter: 'blur(10px)',
-          }}
-        >
-          <span className="text-base sm:text-lg text-[#e5be7a]" role="img" aria-label="location">📍</span>
-          <span
-            className="text-xs sm:text-sm md:text-base font-serif font-bold text-[#ffffff] tracking-wide"
-            style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}
-          >
-            जगमंदिर पैलेस, उदयपुर
-          </span>
-        </div>
-      </div>
 
       {/* Luxury Action Buttons */}
       <div className="wedding-actions-row flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-3 w-full">
