@@ -254,7 +254,7 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
       }
     };
 
-    // 2. Mobile Kinetic Touch Momentum Engine (Naturally Smooth 1-to-2 Swipe Completion)
+    // 2. Mobile Kinetic Touch Momentum Engine
     let touchPrevY = 0;
     let touchPrevX = 0;
     let touchHistory = []; // { y, time }
@@ -269,18 +269,23 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
         touchPrevY = clientY;
         touchPrevX = clientX;
         touchHistory = [{ y: clientY, time: now }];
-        momentumVelocityRef.current = 0; // Halt any coasting immediately on new touch
+        momentumVelocityRef.current = 0;
 
-        const isHeroInView = window.scrollY < window.innerHeight * 0.45;
-        isTouchingHero = isHeroInView;
+        const isAtPageTop = window.scrollY <= 5;
+        const isSequenceComplete = targetFrameRef.current >= TOTAL_FRAMES - 1;
+
+        // If sequence is already complete and not at the top, let browser scroll natively
+        if (isSequenceComplete && !isAtPageTop) {
+          isTouchingHero = false;
+          return;
+        }
+
+        isTouchingHero = isAtPageTop;
       }
     };
 
     const handleTouchMove = (e) => {
       if (!isTouchingHero || !e.touches || e.touches.length === 0) return;
-
-      const isHeroInView = window.scrollY < window.innerHeight * 0.45;
-      if (!isHeroInView) return;
 
       const currentY = e.touches[0].clientY;
       const currentX = e.touches[0].clientX;
@@ -289,7 +294,7 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
       const dy = touchPrevY - currentY; // dy > 0 means finger dragged UP (advancing sequence)
       const dx = Math.abs(touchPrevX - currentX);
 
-      // Track recent history over 100ms window for reliable release-velocity calculation
+      // Track recent history over 100ms window
       touchHistory.push({ y: currentY, time: currentTime });
       while (touchHistory.length > 1 && currentTime - touchHistory[0].time > 100) {
         touchHistory.shift();
@@ -301,7 +306,7 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
       // Only handle if gesture is primarily vertical
       if (Math.abs(dy) > dx * 0.4) {
         if (dy > 0) {
-          // Dragging UP (moving forward)
+          // Dragging UP (advancing sequence)
           if (targetFrameRef.current < TOTAL_FRAMES - 1) {
             if (e.cancelable) {
               e.preventDefault();
@@ -309,8 +314,8 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
             const step = dy * 1.35;
             targetFrameRef.current = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + step);
           } else {
-            // At last frame: finger drag naturally scrolls the webpage down without any jump!
-            window.scrollBy(0, dy);
+            // Reached last frame: release touch lock so browser handles 100% native smooth scroll!
+            isTouchingHero = false;
           }
         } else if (dy < 0) {
           // Dragging DOWN (reversing sequence when at page top)
@@ -344,7 +349,6 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
           }
         }
       }
-      // NO automatic jump on touch end!
     };
 
     // 3. Keyboard Arrow Keys
@@ -357,7 +361,6 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
           e.preventDefault();
           targetFrameRef.current = Math.min(TOTAL_FRAMES - 1, targetFrameRef.current + 22);
         }
-        // At last frame: let normal key press scroll down naturally!
       } else if (['ArrowUp', 'PageUp'].includes(e.key)) {
         if (targetFrameRef.current > 0 && window.scrollY <= 5) {
           e.preventDefault();
@@ -366,27 +369,13 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
       }
     };
 
-    const canvasEl = canvasRef.current;
-    const containerEl = containerRef?.current;
-
     window.addEventListener('wheel', handleWheel, { passive: false });
     window.addEventListener('keydown', handleKeyDown);
 
-    // Multi-target touch attachment ensures 100% event capture across all mobile screen areas
+    // Single unified window touch listeners (no duplicate element listeners)
     window.addEventListener('touchstart', handleTouchStart, { passive: false });
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('touchend', handleTouchEnd, { passive: true });
-
-    if (canvasEl) {
-      canvasEl.addEventListener('touchstart', handleTouchStart, { passive: false });
-      canvasEl.addEventListener('touchmove', handleTouchMove, { passive: false });
-      canvasEl.addEventListener('touchend', handleTouchEnd, { passive: true });
-    }
-    if (containerEl) {
-      containerEl.addEventListener('touchstart', handleTouchStart, { passive: false });
-      containerEl.addEventListener('touchmove', handleTouchMove, { passive: false });
-      containerEl.addEventListener('touchend', handleTouchEnd, { passive: true });
-    }
 
     return () => {
       window.removeEventListener('wheel', handleWheel);
@@ -395,17 +384,6 @@ export default function ScrollCanvasSequence({ containerRef, onProgressChange, o
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
-
-      if (canvasEl) {
-        canvasEl.removeEventListener('touchstart', handleTouchStart);
-        canvasEl.removeEventListener('touchmove', handleTouchMove);
-        canvasEl.removeEventListener('touchend', handleTouchEnd);
-      }
-      if (containerEl) {
-        containerEl.removeEventListener('touchstart', handleTouchStart);
-        containerEl.removeEventListener('touchmove', handleTouchMove);
-        containerEl.removeEventListener('touchend', handleTouchEnd);
-      }
     };
   }, [containerRef]);
 
